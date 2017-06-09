@@ -9,13 +9,16 @@
 #ifndef url_hpp
 #define url_hpp
 
+#include <netdb.h>
+
 #include <string>
-#include <exception>
 
 struct URL {
     std::string server;
     std::string path_to_file;
+    struct sockaddr_in server_addr;
     
+    URL() = default;
     URL(const std::string & url);
     std::string get_filename(void) const;
 };

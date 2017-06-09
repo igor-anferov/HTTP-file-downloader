@@ -8,9 +8,9 @@
 
 #include "list_to_download.hpp"
 
-file_to_download::file_to_download(const URL & url, const std::string & path): url(url) {
-    this -> path = path;
-};
+#include <fstream>
+#include <exception>
+#include <sstream>
 
 list_to_download::list_to_download(const std::string & filename) {
     std::fstream f(filename);

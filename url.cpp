@@ -8,7 +8,11 @@
 
 #include "url.hpp"
 
+#include <exception>
+
 URL::URL(const std::string & url) {
+    
+    int port = 80;
     
     size_t server_pos;
     
@@ -33,6 +37,27 @@ URL::URL(const std::string & url) {
     if (path_to_file.empty()) {
         throw std::logic_error("URL \"" + url + "\" has empty path to file");
     }
+    
+    // Getting port
+    
+    size_t server_port;
+    
+    if ((server_port = server.find(":")) != std::string::npos) {
+        port = std::stoi(server.substr(server_port + 1));
+        server = server.substr(0, server_port);
+    }
+
+    // Getting server address
+    
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port);
+    
+    struct hostent * serv = gethostbyname(server.c_str());
+    if (serv == NULL) {
+        throw std::runtime_error("Can't translate server's domain name \"" + server + "\" to IP address");
+    }
+    
+    memcpy(&server_addr.sin_addr.s_addr, serv -> h_addr_list[0], 4);
 }
 
 std::string URL::get_filename(void) const {

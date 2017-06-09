@@ -10,6 +10,8 @@
 #include <exception>
 #include "command_line_args.hpp"
 #include "list_to_download.hpp"
+#include "file_downloader.hpp"
+#include "http_response_parser.hpp"
 
 int main(int argc, char ** argv) {
     command_line_args args;
@@ -31,6 +33,11 @@ int main(int argc, char ** argv) {
         
         args.parse_args(argc, argv);
         
+        if (args.is_argument_presented("-help")) {
+            std::cout << args.get_help();
+            return 0;
+        }
+        
         list_to_download downloading_files;
         if (args.is_argument_presented("-i")) {
             downloading_files = list_to_download(args.get_argument_options("-i")["file"]);
@@ -47,17 +54,34 @@ int main(int argc, char ** argv) {
             downloading_files = list_to_download(url, path);
         }
         
+        int part_count = 1;
+        
+        if (args.is_argument_presented("-p")) {
+            part_count = std::stoi(args.get_argument_options("-p")["part_count"]);
+        }
+        
         for (const file_to_download & f: downloading_files) {
-            std::cout << f.url.server << " " << f.url.path_to_file << " " << f.url.get_filename() << " " << f.path << std::endl;
+            try {
+                file_downloader(f, part_count);
+            } catch (http_response_parse_error e) {
+                std::cerr << "⛔️ ERROR!!! " << e.what() << std::endl;
+            } catch (std::logic_error e) {
+                std::cerr << "⛔️ ERROR!!! " << e.what() << std::endl;
+            } catch (std::exception e) {
+                std::cerr << "⛔️ ERROR!!!" << std::endl;
+            }
         }
         
     } catch (parse_error e) {
-        std::cerr << "ERROR!!! " << e.what() << std::endl;
+        std::cerr << "⛔️ ERROR!!! " << e.what() << std::endl;
         std::cerr << args.get_help();
         return -1;
+    } catch (std::logic_error e) {
+        std::cerr << "⛔️ ERROR!!! " << e.what() << std::endl;
+        return -3;
     } catch (std::exception e) {
-        std::cerr << "ERROR!!! " << e.what() << std::endl;
-        return -2;
+        std::cerr << "⛔️ ERROR!!!" << std::endl;
+        return -4;
     }
     
     return 0;

@@ -10,19 +10,8 @@
 #define list_to_download_hpp
 
 #include <vector>
-#include <fstream>
-#include <exception>
 #include <string>
-#include <sstream>
-#include "url.hpp"
-
-struct file_to_download {
-    URL url;
-    std::string path;
-    
-    file_to_download() = default;
-    file_to_download(const URL & url, const std::string & path);
-};
+#include "file_to_download.hpp"
 
 class list_to_download {
     std::vector<file_to_download> list;
