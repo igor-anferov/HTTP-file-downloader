@@ -48,7 +48,7 @@ int main(int argc, char ** argv) {
         }
         
         for (const file_to_download & f: downloading_files) {
-            std::cout << f.url << " " << f.path << std::endl;
+            std::cout << f.url.server << " " << f.url.path_to_file << " " << f.url.get_filename() << " " << f.path << std::endl;
         }
         
     } catch (parse_error e) {

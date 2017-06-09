@@ -36,6 +36,8 @@ void command_line_args::set_program_options(const std::vector<std::string> & opt
 }
 
 void command_line_args::parse_args(int argc, char ** argv) {
+    presented_program_options.clear();
+    presented_arguments.clear();
     int cur_param_num = 0;
     
     // Program name handling

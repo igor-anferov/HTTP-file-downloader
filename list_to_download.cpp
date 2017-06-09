@@ -8,8 +8,7 @@
 
 #include "list_to_download.hpp"
 
-file_to_download::file_to_download(const std::string & url, const std::string & path) {
-    this -> url = url;
+file_to_download::file_to_download(const URL & url, const std::string & path): url(url) {
     this -> path = path;
 };
 
@@ -28,16 +27,22 @@ list_to_download::list_to_download(const std::string & filename) {
         std::string path;
         
         if (ss >> url) {
+            URL struct_url(url);
             if (!(ss >> path)) {
-                path = "";
+                path = struct_url.get_filename();
             }
-            list.push_back(file_to_download(url, path));
+            list.push_back(file_to_download(struct_url, path));
         }
     }
 }
 
 list_to_download::list_to_download(const std::string & url, const std::string & path) {
-    list.push_back(file_to_download(url, path));
+    URL struct_url(url);
+    if (path == "") {
+        list.push_back(file_to_download(struct_url, struct_url.get_filename()));
+    } else {
+        list.push_back(file_to_download(struct_url, path));
+    }
 }
 
 std::vector<file_to_download>::iterator list_to_download::begin() {
