@@ -1,9 +1,13 @@
 # HTTP file downloader
-Tool that can download files specified in command line or in configuration file via HTTP protocol, supported downloading file in many threads simultaneously
+Tool that can download files specified in command line or in configuration file via HTTP protocol. Program supported:
+- Downloading file in many threads simultaneously
+- Resuming download after losing connection
+- Handling redirection responses from server
+- Animated download status
 
 ## Installation
 
-In Terminal change working directory to directory where HTTP file downloader will be located and execute these commands:
+In the terminal window, change the working directory to the directory where the HTTP file downloader will be loaded, and run these commands:
 ```
 git clone https://github.com/igor-anferov/HTTP-file-downloader.git
 cd HTTP-file-downloader

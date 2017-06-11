@@ -40,8 +40,7 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
     
     while (true) { // In case of redirecting, till response is 2XX
         
-        // Getting file size and checking acceptance of ranges
-        
+        // Getting file size and checking ability of partitional download
         
         http_request_creator request_creator("HEAD", file.url.path_to_file);
         request_creator.add_header("Host", file.url.server);
@@ -50,9 +49,7 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
         request_creator.add_header("Range", "bytes=0-");
         
         std::cout << "Connection... ";
-        
         int socket_fd = create_socket_connected_to_server();
-        
         std::cout << "✅" << std::endl;
         
         send_request_to_server(socket_fd, request_creator.get_request());
@@ -69,12 +66,12 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
         std::map<std::string, std::string>::iterator headers_it;
         
         switch (response_parser.code.front()) {
-            case '3':
+            case '3': // Redirection
                 std::cout << "Redirection to " + response_parser.headers.at("Location") << std::endl;
                 file.url = URL(response_parser.headers.at("Location"));
                 break;
                 
-            case '2':
+            case '2': // Good
                 if ( (headers_it = response_parser.headers.find("Content-Type")) != response_parser.headers.end()) {
                     std::cout << "File type: " << (*headers_it).second << std::endl;
                 }
@@ -97,8 +94,8 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
                         } else {
                             download_part(0, -1, ATTEMPT_COUNT, false);
                         }
-                    } else if (response_parser.code == "206") {
-                        if (file_size >= 0) {
+                    } else if (response_parser.code == "206") {  // Partitional downloads are supported
+                        if (file_size >= 0) {  // We can use partitional downloads
                             std::list<std::future<void>> parts_downloaders;
                             
                             for (int i = 1; i < part_count; ++i) {
@@ -115,10 +112,10 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
                             for (auto & future: parts_downloaders) {
                                 future.get();
                             }
-                        } else {
+                        } else {  // Can't use partitional downloads because file size is unknown
                             download_part(0, -1, ATTEMPT_COUNT, true);
                         }
-                    } else {
+                    } else {  // !200 && !206
                         throw std::runtime_error("Unexpected server response: " +
                                                  response_parser.code + " " +
                                                  response_parser.code_description);
@@ -146,7 +143,7 @@ int file_downloader::create_socket_connected_to_server(void) {
     int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     
     if (socket_fd == -1) {
-        throw std::runtime_error("Socket creation fail");
+        throw std::runtime_error("Socket creation failed");
     }
     
     if ( connect(socket_fd,
@@ -160,7 +157,6 @@ int file_downloader::create_socket_connected_to_server(void) {
 }
 
 void file_downloader::send_request_to_server(int socket_fd, const std::string & request) {
-    
     if (write(socket_fd, request.c_str(), request.length()) == -1) {
         throw std::runtime_error("Sending HEAD query to server failed");
     }
@@ -179,15 +175,15 @@ void file_downloader::update_downloaded_info(long long bytes) {
             msg_ss << '.';
         }
         msg_ss << " " << int(downloaded_persent * 100) << "% ( " << downloaded << " / " << file_size << " )";
-    } else {
+    } else {   // Can't show status bar because don't know file length
         msg_ss << "Downloaded " << downloaded << " bytes";
     }
-    cout_mutex.lock();
-    std::cout << '\r' << msg_ss.str() << std::flush;
+    cout_mutex.lock();  // Threads write to terminal one by one
+    std::cout << '\r' << msg_ss.str() << std::flush;  // '\r' to overwrite preveous status bar state
     cout_mutex.unlock();
 }
 
-long long file_downloader::socket_to_stream(int socket_fd, std::ostream & os, std::function<void(long long)>callback_on_flush) {
+long long file_downloader::socket_to_stream(int socket_fd, std::ostream & os, std::function<void(long long)>callback_on_flush) { // callback_on_flush = nullptr by default, uses to update status bar
     char buf[BUF_SIZE];
     long long read_totaly = 0;
     long long count_of_read_bytes;
@@ -196,9 +192,7 @@ long long file_downloader::socket_to_stream(int socket_fd, std::ostream & os, st
             throw std::runtime_error("Reading request from socket failed");
         }
         read_totaly += count_of_read_bytes;
-        os.flush();
         os.write(buf, count_of_read_bytes);
-        os.flush();
         if (callback_on_flush != nullptr) {
             callback_on_flush(count_of_read_bytes);
         }
@@ -207,10 +201,10 @@ long long file_downloader::socket_to_stream(int socket_fd, std::ostream & os, st
 }
 
 std::string file_downloader::get_header(int socket_fd) {
-    std::string buf = "NOT";
+    std::string buf = "AAA";  // Just three characters that are different from '\r' and '\n'
     std::string header;
     
-    char current;
+    char current;  // A header in an HTTP response isn't big, so we can read it one charachter by another without losing performance
     
     size_t count_of_read_bytes;
     
@@ -221,9 +215,9 @@ std::string file_downloader::get_header(int socket_fd) {
         header.push_back(current);
         buf.push_back(current);
         if (buf == "\r\n\r\n") {
-            break;
+            break; // We found end of header
         }
-        buf = buf.substr(1);
+        buf = buf.substr(1); // buf.pop_front();
     }
     
     return header;
@@ -241,9 +235,9 @@ void file_downloader::download_part(long long first_byte, long long last_byte, i
     request_creator.add_header("Referer", "http://" + file.url.server + "/");
     request_creator.add_header("Connection", "close");
     
-    std::fstream f(file.path, std::ios_base::out | std::ios_base::app | std::ios_base::binary);
+    std::fstream f(file.path, std::ios_base::out | std::ios_base::app | std::ios_base::binary); // Create file if it is not exists
     f.close();
-    f.open(file.path, std::ios_base::out | std::ios_base::in | std::ios_base::binary);
+    f.open(file.path, std::ios_base::out | std::ios_base::in | std::ios_base::binary); // The only possible mode; failes if file is not exists
     f.seekp(first_byte);
     
     if (f.fail()) {
@@ -253,7 +247,6 @@ void file_downloader::download_part(long long first_byte, long long last_byte, i
     long long to_download = 0;
     
     if (partitional_downloading) {
-        
         std::stringstream range;
         range << "bytes=" << first_byte << "-";
         
@@ -269,27 +262,27 @@ void file_downloader::download_part(long long first_byte, long long last_byte, i
     
     send_request_to_server(socket_fd, request_creator.get_request());
     
-    shutdown(socket_fd, 1);    // closing socket on write
+    shutdown(socket_fd, 1);    // Closing socket on write
     
-    get_header(socket_fd);     // Move to body
+    get_header(socket_fd);     // Move to response body
     
     long long got = socket_to_stream(socket_fd, f,
                                      std::bind(&file_downloader::update_downloaded_info, this, std::placeholders::_1));
     
     shutdown(socket_fd, 2);
-    close(socket_fd);          // closing socket
+    close(socket_fd);          // Closing socket
     
-    f.close();
+    f.close();                 // Closing file
     
-    if (to_download && got < to_download) {
-        if (got > 0) {
-            attempt_count = ATTEMPT_COUNT;
+    if (to_download && got < to_download) {  // Server closed connection before sent all data
+        if (got > 0) {  // This attempt wasn't completely unsuccessful
+            attempt_count = ATTEMPT_COUNT;  // Reseting counter of unsuccessful attempts
         }
-        if (attempt_count == 1 || !partitional_downloading) {
+        if (attempt_count == 1 || !partitional_downloading) { // No more attempts or can't request needed bytes
             throw std::runtime_error("Server closed connection before sent all data");
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(200*(ATTEMPT_COUNT - attempt_count)));   // wait for Internet connection resumption
-        download_part(first_byte + got, last_byte, attempt_count - 1, partitional_downloading);
+        std::this_thread::sleep_for(std::chrono::milliseconds(200*(ATTEMPT_COUNT - attempt_count)));   // Waiting for Internet connection resumption
+        download_part(first_byte + got, last_byte, attempt_count - 1, partitional_downloading);        // Making one more attempt to download lacking data
     }
 }
 

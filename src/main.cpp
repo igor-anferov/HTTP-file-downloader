@@ -19,6 +19,7 @@ int main(int argc, char ** argv) {
     command_line_args args;
     
     try {
+        // Parsing command line arguments
         args.add_argument("-help",
                           {},
                           "Prints this user guide. If exists, all other arguments will be ignored");
@@ -40,6 +41,7 @@ int main(int argc, char ** argv) {
             return 0;
         }
         
+        // Creation of list including files to download and places in filesystem where to download
         list_to_download downloading_files;
         if (args.is_argument_presented("-i")) {
             downloading_files = list_to_download(args.get_argument_options("-i")["file"]);
@@ -56,12 +58,14 @@ int main(int argc, char ** argv) {
             downloading_files = list_to_download(url, path);
         }
         
+        // Getting number of threads for simultaneous file downloading
         int part_count = 1;
         
         if (args.is_argument_presented("-p")) {
             part_count = std::stoi(args.get_argument_options("-p")["part_count"]);
         }
         
+        // Downloading files from created list
         size_t succeed = 0;
         size_t failed = 0;
         
@@ -84,6 +88,8 @@ int main(int argc, char ** argv) {
             }
             std::cout << "---------------------------------------" << std::endl;
         }
+        
+        // Printing global results
         std::cout << "✅  Succeed: " << succeed << std::endl;
         std::cout << "❌  Failed:  " << failed << std::endl;
         
