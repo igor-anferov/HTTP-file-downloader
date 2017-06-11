@@ -9,6 +9,8 @@
 #include "url.hpp"
 
 #include <exception>
+#include <stdexcept>
+#include <cstring>
 
 URL::URL(const std::string & url) {
     
@@ -61,5 +63,18 @@ URL::URL(const std::string & url) {
 }
 
 std::string URL::get_filename(void) const {
-    return path_to_file.substr(path_to_file.find_last_of('/')+1);
+    return delete_query(path_to_file.substr(path_to_file.find_last_of('/')+1));
 }
+
+std::string URL::get_path_to_file_without_query(void) const {
+    return delete_query(path_to_file);
+}
+
+std::string URL::delete_query(const std::string & str) const {
+    size_t query_pos;
+    if ( (query_pos = str.find_first_of('?')) != std::string::npos) {
+        return str.substr(0, query_pos);
+    }
+    return str;
+}
+

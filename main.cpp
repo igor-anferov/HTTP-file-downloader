@@ -8,6 +8,8 @@
 
 #include <iostream>
 #include <exception>
+#include <stdexcept>
+#include <string>
 #include "command_line_args.hpp"
 #include "list_to_download.hpp"
 #include "file_downloader.hpp"
@@ -60,27 +62,40 @@ int main(int argc, char ** argv) {
             part_count = std::stoi(args.get_argument_options("-p")["part_count"]);
         }
         
+        size_t succeed = 0;
+        size_t failed = 0;
+        
         for (const file_to_download & f: downloading_files) {
             try {
                 file_downloader(f, part_count);
+                succeed++;
             } catch (http_response_parse_error e) {
-                std::cerr << "⛔️ ERROR!!! " << e.what() << std::endl;
+                std::cerr << "⛔️  ERROR!!! " << e.what() << std::endl;
+                failed++;
             } catch (std::logic_error e) {
-                std::cerr << "⛔️ ERROR!!! " << e.what() << std::endl;
+                std::cerr << "⛔️  ERROR!!! " << e.what() << std::endl;
+                failed++;
+            } catch (std::runtime_error e) {
+                std::cerr << "⛔️  ERROR!!! " << e.what() << std::endl;
+                failed++;
             } catch (std::exception e) {
-                std::cerr << "⛔️ ERROR!!!" << std::endl;
+                std::cerr << "⛔️  ERROR!!!" << std::endl;
+                failed++;
             }
+            std::cout << "---------------------------------------" << std::endl;
         }
+        std::cout << "✅  Succeed: " << succeed << std::endl;
+        std::cout << "❌  Failed:  " << failed << std::endl;
         
     } catch (parse_error e) {
-        std::cerr << "⛔️ ERROR!!! " << e.what() << std::endl;
+        std::cerr << "⛔️  ERROR!!! " << e.what() << std::endl;
         std::cerr << args.get_help();
         return -1;
     } catch (std::logic_error e) {
-        std::cerr << "⛔️ ERROR!!! " << e.what() << std::endl;
+        std::cerr << "⛔️  ERROR!!! " << e.what() << std::endl;
         return -3;
     } catch (std::exception e) {
-        std::cerr << "⛔️ ERROR!!!" << std::endl;
+        std::cerr << "⛔️  ERROR!!!" << std::endl;
         return -4;
     }
     

@@ -21,6 +21,11 @@ struct URL {
     URL() = default;
     URL(const std::string & url);
     std::string get_filename(void) const;
+    std::string get_path_to_file_without_query(void) const;
+    
+private:
+    
+    std::string delete_query(const std::string & str) const;
 };
 
 #endif /* url_hpp */
