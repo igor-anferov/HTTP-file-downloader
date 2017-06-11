@@ -9,29 +9,13 @@
 #ifndef file_downloader_hpp
 #define file_downloader_hpp
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-
-#include <string>
-#include <exception>
-#include <stdexcept>
 #include <iostream>
-#include <atomic>
+#include <string>
 #include <mutex>
-#include <sstream>
-#include <future>
-#include <thread>
-#include <chrono>
-#include <fstream>
-#include <list>
+#include <atomic>
 #include <functional>
 
 #include "file_to_download.hpp"
-#include "http_request_creator.hpp"
-#include "http_response_parser.hpp"
 
 #define BUF_SIZE (1 << 15)
 #define ATTEMPT_COUNT 20
@@ -47,7 +31,7 @@ public:
     file_downloader(file_to_download file, int part_count);
     
 private:
-    int create_socket_connected_to_server();
+    int create_socket_connected_to_server(void);
     void send_request_to_server(int socket_fd, const std::string & request);
     void update_downloaded_info(long long bytes);
     long long socket_to_stream(int socket_fd, std::ostream & os, std::function<void(long long)>callback_on_flush = nullptr);

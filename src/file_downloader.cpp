@@ -8,6 +8,30 @@
 
 #include "file_downloader.hpp"
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+#include <string>
+#include <exception>
+#include <stdexcept>
+#include <iostream>
+#include <atomic>
+#include <mutex>
+#include <sstream>
+#include <future>
+#include <thread>
+#include <chrono>
+#include <fstream>
+#include <list>
+#include <functional>
+
+#include "file_to_download.hpp"
+#include "http_request_creator.hpp"
+#include "http_response_parser.hpp"
+
 file_downloader::file_downloader(file_to_download file, int part_count) {
     this -> file = file;
     this -> part_count = part_count;
@@ -81,7 +105,7 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
                                 long long first_byte = i * bytes_per_thread();
                                 long long last_byte = std::min((i+1) * bytes_per_thread(), file_size) - 1;
                                 
-                                parts_downloaders.push_back(std::async(std::launch::async, &file_downloader::download_part, this, first_byte, last_byte, ATTEMPT_COUNT, true));
+                                parts_downloaders.push_back(std::async(std::launch::async, std::bind(&file_downloader::download_part, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), first_byte, last_byte, ATTEMPT_COUNT, true));
                             }
                             
                             std::cout << 0 << ": " << 0 << "-" << std::min(bytes_per_thread(), file_size) - 1 << std::endl;
@@ -118,7 +142,7 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
     }
 }
 
-int file_downloader::create_socket_connected_to_server() {
+int file_downloader::create_socket_connected_to_server(void) {
     int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     
     if (socket_fd == -1) {
