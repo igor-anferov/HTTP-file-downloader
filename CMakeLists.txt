@@ -1,30 +1,27 @@
 cmake_minimum_required(VERSION 3.5)
-project(HTTP file downloader)
+project(HTTP_file_downloader)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17) 
+set(CMAKE_CXX_STANDARD_REQUIRED on)
 
-set(HEADERS
-	command_line_args.hpp
-	file_downloader.hpp
-	file_to_download.hpp
-	http_request_creator.hpp
-	http_response_parser.hpp
-	list_to_download.hpp
-	url.hpp
+include_directories(include)
+
+set(SRC_DIR
+	src
 )
 
 set(SOURCES
-	command_line_args.cpp
-	file_downloader.cpp
-	file_to_download.cpp
-	http_request_creator.cpp
-	http_response_parser.cpp
-	list_to_download.cpp
-	url.cpp
+	${SRC_DIR}/command_line_args.cpp
+	${SRC_DIR}/file_downloader.cpp
+	${SRC_DIR}/file_to_download.cpp
+	${SRC_DIR}/http_request_creator.cpp
+	${SRC_DIR}/http_response_parser.cpp
+	${SRC_DIR}/list_to_download.cpp
+	${SRC_DIR}/url.cpp
 )
 
-set(MAIN_SOURCE
-	main.cpp
+set(MAIN_SOURCES
+	${SRC_DIR}/main.cpp
 )
 
-add_executable(${PROJECT_NAME} ${MAIN_SOURCE} ${SOURCES} ${HEADERS})
+add_executable(${PROJECT_NAME} ${MAIN_SOURCES} ${SOURCES} ${HEADERS})
