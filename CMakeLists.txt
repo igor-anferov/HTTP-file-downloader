@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.5)
 project(HTTP_file_downloader)
 
-set(CMAKE_CXX_STANDARD 17) 
+set(CMAKE_CXX_STANDARD 11) 
 set(CMAKE_CXX_STANDARD_REQUIRED on)
+
+set(CMAKE_CXX_FLAGS -pthread)
 
 include_directories(include)
 
