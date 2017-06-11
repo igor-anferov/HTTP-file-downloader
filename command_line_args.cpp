@@ -9,6 +9,7 @@
 #include "command_line_args.hpp"
 
 #include <exception>
+#include <stdexcept>
 #include <sstream>
 
 parse_error::parse_error(): std::logic_error("Command line arguments parsing failed") {}
@@ -50,7 +51,8 @@ void command_line_args::parse_args(int argc, char ** argv) {
     // Arguments handling
     for (; cur_param_num < argc;) {
         std::map<std::string, argument_properties>::const_iterator argument_iterator;
-        if ((argument_iterator = avaivable_arguments.find(argv[cur_param_num++])) != avaivable_arguments.end()) {
+        if ((argument_iterator = avaivable_arguments.find(argv[cur_param_num])) != avaivable_arguments.end()) {
+            cur_param_num++;
             // Argument
             presented_arguments[argument_iterator -> first];
             // Argument options handling

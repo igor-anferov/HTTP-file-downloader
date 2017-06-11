@@ -10,6 +10,7 @@
 
 #include <sstream>
 #include <exception>
+#include <stdexcept>
 
 http_response_parse_error::http_response_parse_error(): std::runtime_error("Can't parse HTTP responce") {}
 

@@ -10,6 +10,7 @@
 
 #include <fstream>
 #include <exception>
+#include <stdexcept>
 #include <sstream>
 
 list_to_download::list_to_download(const std::string & filename) {
