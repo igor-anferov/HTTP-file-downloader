@@ -37,9 +37,6 @@ URL::URL(const std::string & url) {
         resource = "/";
     }
     file_path = matches[5].str();
-    if (file_path.empty()) {
-        file_path = server;
-    }
     file_name = matches[6].str();
     if (file_name.empty()) {
         file_name = server;

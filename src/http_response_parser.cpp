@@ -41,12 +41,7 @@ http_response_parser::http_response_parser(const std::string & responce) {
     
     // Headers handling
     
-    while(true) {
-        getline(ss, line);
-        if (!ss) {
-            throw http_response_parse_error();
-        }
-        
+    while(getline(ss, line).good()) {
         line.pop_back();
         
         if (line.empty()) {

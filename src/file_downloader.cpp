@@ -47,6 +47,7 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
         request_creator.add_header("Accept", "*/*");
         request_creator.add_header("Referer", "http://" + file.url.server + "/");
         request_creator.add_header("Range", "bytes=0-");
+        request_creator.add_header("Connection", "close");
         
         std::cout << "Connection... ";
         int socket_fd = create_socket_connected_to_server();
@@ -56,14 +57,15 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
         
         shutdown(socket_fd, 1); // closing socket on write
         
-        std::stringstream response;
-        socket_to_stream(socket_fd, response);
+        std::string response = search_in_socket(socket_fd, "\r\n\r\n");
         
         shutdown(socket_fd, 2);
-        close(socket_fd);       // closing socket
-        
-        http_response_parser response_parser(response.str());
+        close(socket_fd);       // closing socket ignoring body
+
+        http_response_parser response_parser(response);
         std::map<std::string, std::string>::iterator headers_it;
+        
+        bool chunked = false;
         
         switch (response_parser.code.front()) {
             case '3': // Redirection
@@ -73,28 +75,32 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
                 
             case '2': // Good
                 if ( (headers_it = response_parser.headers.find("Content-Type")) != response_parser.headers.end()) {
-                    std::cout << "File type: " << (*headers_it).second << std::endl;
+                    std::cout << "File type: " << headers_it->second << std::endl;
+                }
+                
+                if ( (headers_it = response_parser.headers.find("Transfer-Encoding")) != response_parser.headers.end() && headers_it->second == "chunked") {
+                    chunked = true;
                 }
                 
                 std::cout << "File size: ";
                 if ( (headers_it = response_parser.headers.find("Content-Length")) != response_parser.headers.end()) {
-                    file_size = std::stoll((*headers_it).second);
+                    file_size = std::stoll(headers_it->second);
                     std::cout << file_size << std::endl;
                 } else {
                     std::cout << "unknown" << std::endl;
                 }
                 
                 try {
-                    if (response_parser.code == "200") {
+                    if (response_parser.code == "200" || chunked) {
                         if (part_count > 1) {
                             std::cout << "⚠️  Server don't support partial downloads. Using one thread" << std::endl;
                         }
                         if (file_size >= 0) {
-                            download_part(0, file_size-1, ATTEMPT_COUNT, false);
+                            download_part(0, file_size-1, ATTEMPT_COUNT, false, chunked);
                         } else {
-                            download_part(0, -1, ATTEMPT_COUNT, false);
+                            download_part(0, -1, ATTEMPT_COUNT, false, chunked);
                         }
-                    } else if (response_parser.code == "206") {  // Partitional downloads are supported
+                    } else if (response_parser.code == "206") {  // Partial downloads are supported
                         if (file_size >= 0) {  // We can use partial downloads
                             std::list<std::future<void>> parts_downloaders;
                             
@@ -102,16 +108,16 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
                                 long long first_byte = i * bytes_per_thread();
                                 long long last_byte = std::min((i+1) * bytes_per_thread(), file_size) - 1;
                                 
-                                parts_downloaders.push_back(std::async(std::launch::async, std::bind(&file_downloader::download_part, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), first_byte, last_byte, ATTEMPT_COUNT, true));
+                                parts_downloaders.push_back(std::async(std::launch::async, std::bind(&file_downloader::download_part, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5), first_byte, last_byte, ATTEMPT_COUNT, true, chunked));
                             }
                                                         
-                            download_part(0, std::min(bytes_per_thread(), file_size) - 1, ATTEMPT_COUNT, true);
+                            download_part(0, std::min(bytes_per_thread(), file_size) - 1, ATTEMPT_COUNT, true, chunked);
                             
                             for (auto & future: parts_downloaders) {
                                 future.get();
                             }
                         } else {  // Can't use partial downloads because file size is unknown
-                            download_part(0, -1, ATTEMPT_COUNT, true);
+                            download_part(0, -1, ATTEMPT_COUNT, true, chunked);
                         }
                     } else {  // !200 && !206
                         throw std::runtime_error("Unexpected server response: " +
@@ -181,47 +187,64 @@ void file_downloader::update_downloaded_info(long long bytes) {
     cout_mutex.unlock();
 }
 
-long long file_downloader::socket_to_stream(int socket_fd, std::ostream & os, std::function<void(long long)>callback_on_flush) { // callback_on_flush = nullptr by default, uses to update status bar
-    char buf[BUF_SIZE];
+long long file_downloader::socket_to_stream(int socket_fd, std::ostream & os, long long limit, bool chunked, std::function<void(long long)>callback_on_flush) { // callback_on_flush = nullptr by default, uses to update status bar
+    if (limit == 0) {
+        return 0;
+    }
     long long read_totaly = 0;
     long long count_of_read_bytes;
-    while ( (count_of_read_bytes = read(socket_fd, buf, BUF_SIZE)) != 0 ) {
-        if (count_of_read_bytes == -1) {
-            throw std::runtime_error("Reading request from socket failed");
-        }
-        read_totaly += count_of_read_bytes;
-        os.write(buf, count_of_read_bytes);
-        if (callback_on_flush != nullptr) {
-            callback_on_flush(count_of_read_bytes);
+    if (chunked) {  // Chunked transfer encoding
+        do {
+            std::stringstream hex_to_int;
+            hex_to_int << std::hex << search_in_socket(socket_fd, "\r\n");
+            hex_to_int >> count_of_read_bytes;
+            read_totaly += socket_to_stream(socket_fd, os, count_of_read_bytes, false, callback_on_flush);
+            if (search_in_socket(socket_fd, "\r\n") != "\r\n") {
+                throw std::runtime_error("Bad chunk");
+            }
+        } while (count_of_read_bytes > 0);
+    } else {
+        char buf[BUF_SIZE];
+        while ( (count_of_read_bytes = read(socket_fd, buf, limit>=0?std::min((long long)(BUF_SIZE), limit-read_totaly):BUF_SIZE)) != 0 ) {
+            if (count_of_read_bytes == -1) {
+                throw std::runtime_error("Reading request from socket failed");
+            }
+            read_totaly += count_of_read_bytes;
+            os.write(buf, count_of_read_bytes);
+            if (callback_on_flush != nullptr) {
+                callback_on_flush(count_of_read_bytes);
+            }
+            if (limit > -1 && read_totaly >= limit) {
+                break;
+            }
         }
     }
     return read_totaly;
 }
 
-std::string file_downloader::get_header(int socket_fd) {
-    std::string buf = "AAA";  // Just three characters that are different from '\r' and '\n'
-    std::string header;
+std::string file_downloader::search_in_socket(int socket_fd, std::string sequence) {
+    std::stringstream ss;
+    socket_to_stream(socket_fd, ss, sequence.size());
+    std::string buf = ss.str();
+    std::string res = buf;
     
-    char current;  // A header in an HTTP response isn't big, so we can read it one charachter by another without losing performance
+    char current;  // This method uses for small data, so we can read it one charachter by another without losing performance
     
     size_t count_of_read_bytes;
     
-    while ( (count_of_read_bytes = read(socket_fd, &current, 1)) != 0 ) {
+    while ( buf != sequence && (count_of_read_bytes = read(socket_fd, &current, 1)) != 0 ) {
         if (count_of_read_bytes == -1) {
             throw std::runtime_error("Reading request from socket failed");
         }
-        header.push_back(current);
+        res.push_back(current);
         buf.push_back(current);
-        if (buf == "\r\n\r\n") {
-            break; // We found end of header
-        }
         buf = buf.substr(1); // buf.pop_front();
     }
     
-    return header;
+    return res;
 }
 
-void file_downloader::download_part(long long first_byte, long long last_byte, int attempt_count, bool partial_downloading) {
+void file_downloader::download_part(long long first_byte, long long last_byte, int attempt_count, bool partial_downloading, bool chunked) {
     
     if (file_size >=0 && first_byte >= file_size) {
         return;
@@ -243,6 +266,9 @@ void file_downloader::download_part(long long first_byte, long long last_byte, i
     }
     
     long long to_download = 0;
+    if (last_byte >= 0) {
+        to_download = last_byte - first_byte + 1;
+    }
     
     if (partial_downloading) {
         std::stringstream range;
@@ -262,9 +288,15 @@ void file_downloader::download_part(long long first_byte, long long last_byte, i
     
     shutdown(socket_fd, 1);    // Closing socket on write
     
-    get_header(socket_fd);     // Move to response body
+    http_response_parser response(search_in_socket(socket_fd, "\r\n\r\n"));
+    if (response.headers["Transfer-Encoding"] == "chunked") {
+        chunked = true;
+        if (partial_downloading && first_byte > 0) {
+            return;
+        }
+    }
     
-    long long got = socket_to_stream(socket_fd, f,
+    long long got = socket_to_stream(socket_fd, f, -1, chunked,
                                      std::bind(&file_downloader::update_downloaded_info, this, std::placeholders::_1));
     
     shutdown(socket_fd, 2);
@@ -276,11 +308,11 @@ void file_downloader::download_part(long long first_byte, long long last_byte, i
         if (got > 0) {  // This attempt wasn't completely unsuccessful
             attempt_count = ATTEMPT_COUNT;  // Reseting counter of unsuccessful attempts
         }
-        if (attempt_count == 1 || !partial_downloading) { // No more attempts or can't request needed bytes
+        if (attempt_count == 1 || !partial_downloading || chunked) { // No more attempts or can't request needed bytes
             throw std::runtime_error("Server closed connection before sent all data");
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(200*(ATTEMPT_COUNT - attempt_count)));   // Waiting for Internet connection resumption
-        download_part(first_byte + got, last_byte, attempt_count - 1, partial_downloading);        // Making one more attempt to download lacking data
+        download_part(first_byte + got, last_byte, attempt_count - 1, partial_downloading, chunked);        // Making one more attempt to download lacking data
     }
 }
 

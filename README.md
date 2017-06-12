@@ -3,6 +3,7 @@ HTTP file downloader is a tool that can download files specified in command line
 - Downloading file in many threads simultaneously
 - Resuming download after losing connection
 - Handling redirection responses from server
+- Downloading pages in chunked transfer encoding
 - Animated download status
 
 ## Installation
