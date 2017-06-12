@@ -36,7 +36,7 @@ private:
     void update_downloaded_info(long long bytes);
     long long socket_to_stream(int socket_fd, std::ostream & os, std::function<void(long long)>callback_on_flush = nullptr);
     std::string get_header(int socket_fd);
-    void download_part(long long first_byte, long long last_byte, int attempt_count, bool partitional_downloading);
+    void download_part(long long first_byte, long long last_byte, int attempt_count, bool partial_downloading);
     long long bytes_per_thread(void);
 };
 

@@ -40,7 +40,7 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
     
     while (true) { // In case of redirecting, till response is 2XX
         
-        // Getting file size and checking ability of partitional download
+        // Getting file size and checking ability of partial download
         
         http_request_creator request_creator("HEAD", file.url.resource);
         request_creator.add_header("Host", file.url.server);
@@ -87,7 +87,7 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
                 try {
                     if (response_parser.code == "200") {
                         if (part_count > 1) {
-                            std::cout << "⚠️  Server don't support partitional downloads. Using one thread" << std::endl;
+                            std::cout << "⚠️  Server don't support partial downloads. Using one thread" << std::endl;
                         }
                         if (file_size >= 0) {
                             download_part(0, file_size-1, ATTEMPT_COUNT, false);
@@ -95,7 +95,7 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
                             download_part(0, -1, ATTEMPT_COUNT, false);
                         }
                     } else if (response_parser.code == "206") {  // Partitional downloads are supported
-                        if (file_size >= 0) {  // We can use partitional downloads
+                        if (file_size >= 0) {  // We can use partial downloads
                             std::list<std::future<void>> parts_downloaders;
                             
                             for (int i = 1; i < part_count; ++i) {
@@ -110,7 +110,7 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
                             for (auto & future: parts_downloaders) {
                                 future.get();
                             }
-                        } else {  // Can't use partitional downloads because file size is unknown
+                        } else {  // Can't use partial downloads because file size is unknown
                             download_part(0, -1, ATTEMPT_COUNT, true);
                         }
                     } else {  // !200 && !206
@@ -221,7 +221,7 @@ std::string file_downloader::get_header(int socket_fd) {
     return header;
 }
 
-void file_downloader::download_part(long long first_byte, long long last_byte, int attempt_count, bool partitional_downloading) {
+void file_downloader::download_part(long long first_byte, long long last_byte, int attempt_count, bool partial_downloading) {
     
     if (file_size >=0 && first_byte >= file_size) {
         return;
@@ -244,7 +244,7 @@ void file_downloader::download_part(long long first_byte, long long last_byte, i
     
     long long to_download = 0;
     
-    if (partitional_downloading) {
+    if (partial_downloading) {
         std::stringstream range;
         range << "bytes=" << first_byte << "-";
         
@@ -276,11 +276,11 @@ void file_downloader::download_part(long long first_byte, long long last_byte, i
         if (got > 0) {  // This attempt wasn't completely unsuccessful
             attempt_count = ATTEMPT_COUNT;  // Reseting counter of unsuccessful attempts
         }
-        if (attempt_count == 1 || !partitional_downloading) { // No more attempts or can't request needed bytes
+        if (attempt_count == 1 || !partial_downloading) { // No more attempts or can't request needed bytes
             throw std::runtime_error("Server closed connection before sent all data");
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(200*(ATTEMPT_COUNT - attempt_count)));   // Waiting for Internet connection resumption
-        download_part(first_byte + got, last_byte, attempt_count - 1, partitional_downloading);        // Making one more attempt to download lacking data
+        download_part(first_byte + got, last_byte, attempt_count - 1, partial_downloading);        // Making one more attempt to download lacking data
     }
 }
 
