@@ -36,13 +36,13 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
     this -> file = file;
     this -> part_count = part_count;
     
-    std::cout << "Trying to download " + file.url.server + file.url.get_path_to_file_without_query() << std::endl;
+    std::cout << "Trying to download " + file.url.server + file.url.file_path << std::endl;
     
     while (true) { // In case of redirecting, till response is 2XX
         
         // Getting file size and checking ability of partitional download
         
-        http_request_creator request_creator("HEAD", file.url.path_to_file);
+        http_request_creator request_creator("HEAD", file.url.resource);
         request_creator.add_header("Host", file.url.server);
         request_creator.add_header("Accept", "*/*");
         request_creator.add_header("Referer", "http://" + file.url.server + "/");
@@ -104,9 +104,7 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
                                 
                                 parts_downloaders.push_back(std::async(std::launch::async, std::bind(&file_downloader::download_part, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), first_byte, last_byte, ATTEMPT_COUNT, true));
                             }
-                            
-                            std::cout << 0 << ": " << 0 << "-" << std::min(bytes_per_thread(), file_size) - 1 << std::endl;
-                            
+                                                        
                             download_part(0, std::min(bytes_per_thread(), file_size) - 1, ATTEMPT_COUNT, true);
                             
                             for (auto & future: parts_downloaders) {
@@ -229,7 +227,7 @@ void file_downloader::download_part(long long first_byte, long long last_byte, i
         return;
     }
     
-    http_request_creator request_creator("GET", file.url.path_to_file);
+    http_request_creator request_creator("GET", file.url.resource);
     request_creator.add_header("Host", file.url.server);
     request_creator.add_header("Accept", "*/*");
     request_creator.add_header("Referer", "http://" + file.url.server + "/");

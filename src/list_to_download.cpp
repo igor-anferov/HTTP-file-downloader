@@ -30,7 +30,7 @@ list_to_download::list_to_download(const std::string & filename) {
         if (ss >> url) {
             URL struct_url(url);
             if (!(ss >> path)) {
-                path = struct_url.get_filename();
+                path = struct_url.file_name;
             }
             list.push_back(file_to_download(struct_url, path));
         }
@@ -40,7 +40,7 @@ list_to_download::list_to_download(const std::string & filename) {
 list_to_download::list_to_download(const std::string & url, const std::string & path) {
     URL struct_url(url);
     if (path == "") {
-        list.push_back(file_to_download(struct_url, struct_url.get_filename()));
+        list.push_back(file_to_download(struct_url, struct_url.file_name));
     } else {
         list.push_back(file_to_download(struct_url, path));
     }

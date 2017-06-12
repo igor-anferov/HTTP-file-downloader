@@ -14,18 +14,14 @@
 #include <string>
 
 struct URL {
-    std::string server;
-    std::string path_to_file;
     struct sockaddr_in server_addr;
+    std::string server;
+    std::string resource;
+    std::string file_path;
+    std::string file_name;
     
     URL() = default;
     URL(const std::string & url);
-    std::string get_filename(void) const;
-    std::string get_path_to_file_without_query(void) const;
-    
-private:
-    
-    std::string delete_query(const std::string & str) const;
 };
 
 #endif /* url_hpp */

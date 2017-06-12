@@ -11,42 +11,38 @@
 #include <exception>
 #include <stdexcept>
 #include <cstring>
+#include <regex>
 
 URL::URL(const std::string & url) {
-    
     int port = 80;
     
-    size_t server_pos;
+    // Parsing url
     
-    if ((server_pos = url.find("://")) == std::string::npos) {
-        server_pos = 0;
-    } else {
-        if (url.substr(0, server_pos) != "http") {
-            throw std::logic_error("Unsupported protocol");
-        }
-        server_pos += 3;
+    std::regex url_pattern("^(?:([[:alnum:]]+)://)?([^/:]+)(?::([[:digit:]]+))?(((?:/(?:[^\?]+/)*)([^\?]+))?(?:.*))$");
+    std::match_results<const char *> matches;
+    std::regex_search(url.c_str(), matches, url_pattern);
+
+    if (matches[0].str().empty()) {
+        throw std::logic_error("Can't parse URL " + url);
     }
-    
-    size_t path_to_file_pos;
-    
-    if ((path_to_file_pos = url.find('/', server_pos)) == std::string::npos) {
-        throw std::logic_error("Path to file wasn't found in URL " + url);
+    if (!matches[1].str().empty() && matches[1].str() != "http") {
+        throw std::logic_error("Unsupported protocol: " + matches[1].str());
     }
-    
-    server = url.substr(server_pos, path_to_file_pos - server_pos);
-    path_to_file = url.substr(path_to_file_pos);
-    
-    if (path_to_file.empty()) {
-        throw std::logic_error("URL \"" + url + "\" has empty path to file");
+    server = matches[2].str();
+    if (!matches[3].str().empty()) {
+        port = std::stoi(matches[3].str());
     }
-    
-    // Getting port
-    
-    size_t server_port;
-    
-    if ((server_port = server.find(":")) != std::string::npos) {
-        port = std::stoi(server.substr(server_port + 1));
-        server = server.substr(0, server_port);
+    resource = matches[4].str();
+    if (resource.empty()) {
+        resource = "/";
+    }
+    file_path = matches[5].str();
+    if (file_path.empty()) {
+        file_path = server;
+    }
+    file_name = matches[6].str();
+    if (file_name.empty()) {
+        file_name = server;
     }
 
     // Getting server address
@@ -61,20 +57,3 @@ URL::URL(const std::string & url) {
     
     memcpy(&server_addr.sin_addr.s_addr, serv -> h_addr_list[0], 4);
 }
-
-std::string URL::get_filename(void) const {
-    return delete_query(path_to_file.substr(path_to_file.find_last_of('/')+1));
-}
-
-std::string URL::get_path_to_file_without_query(void) const {
-    return delete_query(path_to_file);
-}
-
-std::string URL::delete_query(const std::string & str) const {
-    size_t query_pos;
-    if ( (query_pos = str.find_first_of('?')) != std::string::npos) {
-        return str.substr(0, query_pos);
-    }
-    return str;
-}
-
