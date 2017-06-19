@@ -55,11 +55,12 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
         
         send_request_to_server(socket_fd, request_creator.get_request());
         
-        shutdown(socket_fd, 1); // closing socket on write
+//    ↓ Don't understand why doesn't work with some servers with this string ↓
+//        shutdown(socket_fd, SHUT_WR); // closing socket on write
         
         std::string response = search_in_socket(socket_fd, "\r\n\r\n");
         
-        shutdown(socket_fd, 2);
+        shutdown(socket_fd, SHUT_RDWR);
         close(socket_fd);       // closing socket ignoring body
 
         http_response_parser response_parser(response);
@@ -207,7 +208,7 @@ long long file_downloader::socket_to_stream(int socket_fd, std::ostream & os, lo
         char buf[BUF_SIZE];
         while ( (count_of_read_bytes = read(socket_fd, buf, limit>=0?std::min((long long)(BUF_SIZE), limit-read_totaly):BUF_SIZE)) != 0 ) {
             if (count_of_read_bytes == -1) {
-                throw std::runtime_error("Reading request from socket failed");
+                throw std::runtime_error("Reading from socket failed");
             }
             read_totaly += count_of_read_bytes;
             os.write(buf, count_of_read_bytes);
@@ -239,6 +240,10 @@ std::string file_downloader::search_in_socket(int socket_fd, std::string sequenc
         res.push_back(current);
         buf.push_back(current);
         buf = buf.substr(1); // buf.pop_front();
+    }
+    
+    if (buf != sequence) {
+        throw std::runtime_error("Can't find sequence in socket");
     }
     
     return res;
@@ -286,7 +291,8 @@ void file_downloader::download_part(long long first_byte, long long last_byte, i
     
     send_request_to_server(socket_fd, request_creator.get_request());
     
-    shutdown(socket_fd, 1);    // Closing socket on write
+//    ↓ Don't understand why doesn't work with some servers with this string ↓
+//    shutdown(socket_fd, SHUT_WR);    // Closing socket on write
     
     http_response_parser response(search_in_socket(socket_fd, "\r\n\r\n"));
     if (response.headers["Transfer-Encoding"] == "chunked") {
@@ -299,7 +305,7 @@ void file_downloader::download_part(long long first_byte, long long last_byte, i
     long long got = socket_to_stream(socket_fd, f, -1, chunked,
                                      std::bind(&file_downloader::update_downloaded_info, this, std::placeholders::_1));
     
-    shutdown(socket_fd, 2);
+    shutdown(socket_fd, SHUT_RDWR);
     close(socket_fd);          // Closing socket
     
     f.close();                 // Closing file
