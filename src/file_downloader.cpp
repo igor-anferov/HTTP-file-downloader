@@ -92,6 +92,10 @@ file_downloader::file_downloader(file_to_download file, int part_count) {
                 }
                 
                 try {
+                    // File initialization (create if not exists, truncate if exists)
+                    std::fstream f(file.path, std::ios_base::out | std::ios_base::binary);
+                    f.close();
+
                     if (response_parser.code == "200" || chunked) {
                         if (part_count > 1) {
                             std::cout << "⚠️  Server don't support partial downloads. Using one thread" << std::endl;
@@ -261,9 +265,7 @@ void file_downloader::download_part(long long first_byte, long long last_byte, i
     request_creator.add_header("Referer", "http://" + file.url.server + "/");
     request_creator.add_header("Connection", "close");
     
-    std::fstream f(file.path, std::ios_base::out | std::ios_base::app | std::ios_base::binary); // Create file if it is not exists
-    f.close();
-    f.open(file.path, std::ios_base::out | std::ios_base::in | std::ios_base::binary); // The only possible mode; failes if file is not exists
+    std::fstream f(file.path, std::ios_base::out | std::ios_base::in | std::ios_base::binary); // The only possible mode; failes if file is not exists
     f.seekp(first_byte);
     
     if (f.fail()) {
